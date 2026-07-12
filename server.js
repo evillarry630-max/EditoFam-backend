@@ -253,3 +253,30 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`EditoFam backend running on http://localhost:${PORT}`);
 });
+
+// Delete video
+app.delete('/api/videos/:id', (req, res) => {
+  const { id } = req.params;
+  const { userName } = req.body;
+
+  db.get('SELECT * FROM videos WHERE id = ?', [id], (err, video) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!video) return res.status(404).json({ error: 'Video not found' });
+
+    if (video.uploader !== userName) {
+      return res.status(403).json({ error: 'You can only delete your own videos' });
+    }
+
+    const filePath = path.join(uploadsDir, path.basename(video.filePath));
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Error deleting file:', err);
+    });
+
+    db.run('DELETE FROM videos WHERE id = ?', [id], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      db.run('DELETE FROM likes WHERE videoId = ?', [id]);
+      db.run('DELETE FROM comments WHERE videoId = ?', [id]);
+      res.json({ success: true, message: 'Video deleted successfully' });
+    });
+  });
+});
